@@ -11,6 +11,7 @@ import pandas as pd
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+import re  # Added for strict cleaning
 
 # --- CONFIGURATION ---
 st.set_page_config(page_title="iAccel USA - Strategic Assessment", page_icon="🚀", layout="wide")
@@ -40,23 +41,20 @@ def get_google_sheet_data():
         # Convert Streamlit Secrets object to a standard Python dictionary
         s_info = dict(st.secrets["gcp_service_account"])
 
-        # --- CRITICAL KEY FIX (The "Nuclear" Option) ---
+        # --- CRITICAL KEY FIX (The "Super Clean" Option) ---
         if "private_key" in s_info:
             pk = s_info["private_key"]
             
-            # 1. Convert escaped newlines to actual newlines
-            pk = pk.replace("\\n", "\n")
-            
-            # 2. STRIP EVERYTHING: Remove existing headers/footers to start clean
-            #    This handles cases where headers are present but lack proper spacing
+            # 1. Remove standard headers/footers to isolate the body
             pk = pk.replace("-----BEGIN PRIVATE KEY-----", "")
             pk = pk.replace("-----END PRIVATE KEY-----", "")
             
-            # 3. Clean whitespace around the body
-            pk = pk.strip()
+            # 2. Remove ALL whitespace (spaces, newlines, tabs) and literal escaped newlines
+            #    This fixes the "Incorrect Padding" error caused by broken lines or copy-paste spaces
+            pk = re.sub(r"\s+", "", pk)
+            pk = pk.replace("\\n", "")
             
-            # 4. Rebuild the key with PERFECT formatting
-            #    Google Auth requires the header and footer to be on their own lines
+            # 3. Rebuild the key with PERFECT formatting
             pk = f"-----BEGIN PRIVATE KEY-----\n{pk}\n-----END PRIVATE KEY-----"
             
             s_info["private_key"] = pk
@@ -78,7 +76,7 @@ def get_google_sheet_data():
     except ValueError as ve:
         # This specific error usually comes from the key format
         st.error(f"Certificate Error: {ve}")
-        st.info("Troubleshooting: Ensure your private_key in secrets has no extra spaces or quote marks breaking the string.")
+        st.info("Troubleshooting: It looks like your Private Key is still invalid. Please delete the current key from Secrets and copy it freshly from the JSON file.")
         return None
     except Exception as e:
         st.error(f"Connection Error: {e}")
