@@ -40,21 +40,24 @@ def get_google_sheet_data():
         # Convert Streamlit Secrets object to a standard Python dictionary
         s_info = dict(st.secrets["gcp_service_account"])
 
-        # --- CRITICAL KEY FIX ---
+        # --- CRITICAL KEY FIX (The "Nuclear" Option) ---
         if "private_key" in s_info:
             pk = s_info["private_key"]
             
-            # 1. Clean whitespace and accidental quotes
-            pk = pk.strip().strip('"').strip("'")
-
-            # 2. Fix Newlines FIRST (so we can properly detect structure if needed)
+            # 1. Convert escaped newlines to actual newlines
             pk = pk.replace("\\n", "\n")
             
-            # 3. Smart Repair: Add headers if missing (Auto-fix logic)
-            if "BEGIN PRIVATE KEY" not in pk:
-                pk = "-----BEGIN PRIVATE KEY-----\n" + pk
-            if "END PRIVATE KEY" not in pk:
-                pk = pk + "\n-----END PRIVATE KEY-----"
+            # 2. STRIP EVERYTHING: Remove existing headers/footers to start clean
+            #    This handles cases where headers are present but lack proper spacing
+            pk = pk.replace("-----BEGIN PRIVATE KEY-----", "")
+            pk = pk.replace("-----END PRIVATE KEY-----", "")
+            
+            # 3. Clean whitespace around the body
+            pk = pk.strip()
+            
+            # 4. Rebuild the key with PERFECT formatting
+            #    Google Auth requires the header and footer to be on their own lines
+            pk = f"-----BEGIN PRIVATE KEY-----\n{pk}\n-----END PRIVATE KEY-----"
             
             s_info["private_key"] = pk
         else:
