@@ -32,15 +32,37 @@ def get_google_sheet_data():
     ]
     
     try:
+        # Check if the main section exists
         if "gcp_service_account" not in st.secrets:
-            st.error("Secrets not found. Please check Streamlit Cloud settings.")
+            st.error("Secrets Error: [gcp_service_account] section not found.")
             return None
 
-        s_info = st.secrets["gcp_service_account"]
+        # Convert Streamlit Secrets object to a standard Python dictionary
+        # This fixes issues where some libraries don't recognize the Streamlit object
+        s_info = dict(st.secrets["gcp_service_account"])
+
+        # CRITICAL FIX: Handle newline characters in the private key
+        # Sometimes copying into secrets escapes the \n, causing "No Key Detected"
+        if "private_key" in s_info:
+            s_info["private_key"] = s_info["private_key"].replace("\\n", "\n")
+        else:
+            st.error("Secrets Error: 'private_key' field is missing.")
+            return None
+
         credentials = Credentials.from_service_account_info(s_info, scopes=scopes)
         gc = gspread.authorize(credentials)
+        
+        # Check for Sheet URL
+        if "private_sheet_url" not in st.secrets:
+            st.error("Secrets Error: 'private_sheet_url' is missing.")
+            return None
+            
         sh = gc.open_by_url(st.secrets["private_sheet_url"])
         return sh.sheet1
+
+    except ValueError as ve:
+        st.error(f"Certificate Error: {ve}. Check your 'private_key' format.")
+        return None
     except Exception as e:
         st.error(f"Connection Error: {e}")
         return None
