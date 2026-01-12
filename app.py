@@ -44,22 +44,17 @@ def get_google_sheet_data():
         if "private_key" in s_info:
             pk = s_info["private_key"]
             
-            # 1. Clean whitespace
-            pk = pk.strip()
-            
-            # 2. Check for missing headers (Common copy-paste error)
-            if not pk.startswith("-----BEGIN PRIVATE KEY-----"):
-                st.error("Secrets Error: The 'private_key' is missing the '-----BEGIN PRIVATE KEY-----' header.")
-                st.info("Tip: Make sure you copied the ENTIRE key from the JSON file, including the dashes.")
-                return None
-                
-            if not pk.endswith("-----END PRIVATE KEY-----"):
-                st.error("Secrets Error: The 'private_key' is missing the '-----END PRIVATE KEY-----' footer.")
-                return None
+            # 1. Clean whitespace and accidental quotes
+            pk = pk.strip().strip('"').strip("'")
 
-            # 3. Fix Newlines: Convert literal "\n" strings to actual newlines
-            # This handles both double-escaped (\\n) and single-escaped (\n) issues
+            # 2. Fix Newlines FIRST (so we can properly detect structure if needed)
             pk = pk.replace("\\n", "\n")
+            
+            # 3. Smart Repair: Add headers if missing (Auto-fix logic)
+            if "BEGIN PRIVATE KEY" not in pk:
+                pk = "-----BEGIN PRIVATE KEY-----\n" + pk
+            if "END PRIVATE KEY" not in pk:
+                pk = pk + "\n-----END PRIVATE KEY-----"
             
             s_info["private_key"] = pk
         else:
