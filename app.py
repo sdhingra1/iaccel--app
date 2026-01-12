@@ -38,15 +38,32 @@ def get_google_sheet_data():
             return None
 
         # Convert Streamlit Secrets object to a standard Python dictionary
-        # This fixes issues where some libraries don't recognize the Streamlit object
         s_info = dict(st.secrets["gcp_service_account"])
 
-        # CRITICAL FIX: Handle newline characters in the private key
-        # Sometimes copying into secrets escapes the \n, causing "No Key Detected"
+        # --- CRITICAL KEY FIX ---
         if "private_key" in s_info:
-            s_info["private_key"] = s_info["private_key"].replace("\\n", "\n")
+            pk = s_info["private_key"]
+            
+            # 1. Clean whitespace
+            pk = pk.strip()
+            
+            # 2. Check for missing headers (Common copy-paste error)
+            if not pk.startswith("-----BEGIN PRIVATE KEY-----"):
+                st.error("Secrets Error: The 'private_key' is missing the '-----BEGIN PRIVATE KEY-----' header.")
+                st.info("Tip: Make sure you copied the ENTIRE key from the JSON file, including the dashes.")
+                return None
+                
+            if not pk.endswith("-----END PRIVATE KEY-----"):
+                st.error("Secrets Error: The 'private_key' is missing the '-----END PRIVATE KEY-----' footer.")
+                return None
+
+            # 3. Fix Newlines: Convert literal "\n" strings to actual newlines
+            # This handles both double-escaped (\\n) and single-escaped (\n) issues
+            pk = pk.replace("\\n", "\n")
+            
+            s_info["private_key"] = pk
         else:
-            st.error("Secrets Error: 'private_key' field is missing.")
+            st.error("Secrets Error: 'private_key' field is missing from secrets.")
             return None
 
         credentials = Credentials.from_service_account_info(s_info, scopes=scopes)
@@ -61,7 +78,9 @@ def get_google_sheet_data():
         return sh.sheet1
 
     except ValueError as ve:
-        st.error(f"Certificate Error: {ve}. Check your 'private_key' format.")
+        # This specific error usually comes from the key format
+        st.error(f"Certificate Error: {ve}")
+        st.info("Troubleshooting: Ensure your private_key in secrets has no extra spaces or quote marks breaking the string.")
         return None
     except Exception as e:
         st.error(f"Connection Error: {e}")
